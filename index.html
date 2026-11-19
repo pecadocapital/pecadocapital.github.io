@@ -236,10 +236,10 @@ const meta=()=>Number(S.ajustes.meta)||0;
 function applyStock(items,sign){ let t=false; items.forEach(it=>{ const p=prodById(it.pid); if(!p||!p.receta) return; p.receta.forEach(r=>{ const i=insById(r.iid); if(i){ i.stock=Math.round((Number(i.stock||0)+sign*r.cant*it.cant)*1000)/1000; t=true; } }); }); return t; }
 const dayDoc=(map,k)=>{ const d=map[k]; return {fecha:k,items:d&&Array.isArray(d.items)?d.items.slice():[]}; };
 async function addVenta(items,metodo,extra){
-  extra=extra||{}; const k=todayKey(), doc=dayDoc(S.ventas,k);
+  extra=extra||{}; const k=extra.dia||todayKey(), doc=dayDoc(S.ventas,k);
   const sub=items.reduce((a,i)=>a+i.precio*i.cant,0), desc=Math.min(sub,extra.descuento||0), dom=extra.domicilio||0;
   const v={id:uid(),ts:Date.now(),items,subtotal:sub,total:sub-desc+dom,metodo,origen:extra.origen||"mostrador"};
-  if(desc) v.descuento=desc; if(dom) v.domicilio=dom; if(extra.cliente) v.cliente=extra.cliente; if(extra.tel) v.tel=extra.tel; if(extra.pedidoId) v.pedidoId=extra.pedidoId;
+  if(desc) v.descuento=desc; if(dom) v.domicilio=dom; if(extra.cliente) v.cliente=extra.cliente; if(extra.tel) v.tel=extra.tel; if(extra.pedidoId) v.pedidoId=extra.pedidoId; if(extra.nota) v.nota=extra.nota;
   doc.items.push(v); S.ventas[k]=doc; await store.set("ventas/"+k,doc);
   if(applyStock(items,-1)) await saveCat();
   return v;
@@ -347,6 +347,7 @@ function vInicio(){
     <div class="kpi"><div class="mut small">Pizzas vendidas</div><div class="big" style="font-size:25px">${R.pizzas}</div><div class="mut small">Ticket prom. ${money(R.n?R.ventas/R.n:0)}</div></div>
     <a class="kpi" href="#pedidos" style="text-decoration:none;color:inherit"><div class="mut small">Pedidos activos</div><div class="big" style="font-size:25px;color:var(--gold)">${act.length}</div><div class="mut small">Ver pedidos ›</div></a>
   </div>
+  <button class="btn gold block" data-act="anotar" style="margin-top:12px" ${ro()}>✍️ Anotar una venta</button>
   <h3>Meta del día</h3>${metaCard}
   <h3>Últimos 7 días</h3><div class="card">${barsChart(days)}<div class="row small mut" style="justify-content:center;gap:16px;margin-top:4px"><span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#ff3b3b"></span> Ventas</span><span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#4b3d38"></span> Gastos</span></div></div>
   ${hc?`<h3>Horas de más venta · ${PER_LABEL[p].toLowerCase()}</h3><div class="card">${hc}</div>`:""}
@@ -365,11 +366,11 @@ function vVender(){
   const grid=ps.length?`<div class="pgrid">${ps.map(p=>{ const q=S.cart[p.id]||0; return `<button class="pbtn ${q?"in":""}" data-add="${esc(p.id)}"><span class="em">${pEmoji(p)}</span><b>${esc(p.nombre)}</b><div class="pr">${money(p.precio)}</div>${q?`<span class="q">${q}</span>`:""}</button>`; }).join("")}</div>`:`<div class="card empty"><span class="e">🍕</span>No hay productos. Agrégalos en <a href="#inventario">Inventario</a>.</div>`;
   const k=todayKey(), hoy=(S.ventas[k]?.items||[]).slice().sort((a,b)=>b.ts-a.ts), tot=hoy.reduce((a,v)=>a+v.total,0);
   const lista=hoy.length?hoy.map(v=>ventaRow(v,k,true)).join(""):`<div class="empty"><span class="e">🧾</span>Aún no hay ventas hoy.</div>`;
-  return `<h2>Vender</h2><p class="lead">Toca los productos para armar la venta.</p>
+  return `<div class="row"><h2 class="grow">Vender</h2><button class="btn gold" data-act="anotar" ${ro()}>✍️ Anotar venta</button></div><p class="lead">Toca los productos para armar la venta, o anótala a mano.</p>
   ${cats.length>2?`<div class="cats">${cats.map(c=>`<button class="chip ${S.pcat===c?"on":""}" data-pcat="${c}">${c}</button>`).join("")}</div>`:""}${grid}
   <h3>Ventas de hoy · ${money(tot)}</h3><div class="card list">${lista}</div>`;
 }
-function ventaRow(v,k,canAnular){ return `<div class="it"><div class="grow"><div class="row"><b class="grow">${money(v.total)}</b><span class="tag ${v.origen==="pedido"?"blue":""}">${esc(v.metodo)}</span></div><div class="mut small">${hora(v.ts)} · ${v.items.map(i=>i.cant+"× "+esc(i.nombre)).join(", ")}${v.descuento?" · desc. "+money(v.descuento):""}${v.domicilio?" · domicilio "+money(v.domicilio):""}${v.cliente?" · "+esc(v.cliente):""}</div></div><button class="btn ghost sm" data-recibo="${esc(k)}|${esc(v.id)}">🧾</button>${canAnular?`<button class="btn ghost sm" data-anular="${esc(k)}|${esc(v.id)}" ${ro()}>✕</button>`:""}</div>`; }
+function ventaRow(v,k,canAnular){ return `<div class="it"><div class="grow"><div class="row"><b class="grow">${money(v.total)}</b><span class="tag ${v.origen==="pedido"?"blue":""}">${esc(v.metodo)}</span></div><div class="mut small">${hora(v.ts)} · ${v.items.map(i=>i.cant+"× "+esc(i.nombre)).join(", ")}${v.descuento?" · desc. "+money(v.descuento):""}${v.domicilio?" · domicilio "+money(v.domicilio):""}${v.cliente?" · "+esc(v.cliente):""}${v.nota?" · 📝 "+esc(v.nota):""}</div></div><button class="btn ghost sm" data-recibo="${esc(k)}|${esc(v.id)}">🧾</button>${canAnular?`<button class="btn ghost sm" data-anular="${esc(k)}|${esc(v.id)}" ${ro()}>✕</button>`:""}</div>`; }
 function cartItems(){ return Object.entries(S.cart).filter(([id,q])=>q>0&&prodById(id)).map(([id,q])=>{ const p=prodById(id); return {pid:id,nombre:p.nombre,precio:p.precio,cant:q}; }); }
 function renderCart(){
   const el=$("#cartbar"), reset=()=>{ el.innerHTML=""; $("main").style.paddingBottom=""; };
@@ -526,7 +527,8 @@ function vHistorial(){
   <div class="row" style="margin-bottom:12px"><button class="btn ghost sm" data-hday="${addDays(k,-1)}">‹</button><input class="inp grow" type="date" id="hDate" value="${k}" max="${todayKey()}"><button class="btn ghost sm" data-hday="${addDays(k,1)}" ${k>=todayKey()?"disabled":""}>›</button></div>
   ${loading?`<div class="loading"><div class="spin"></div></div>`:`
   <div class="kpis"><div class="kpi"><div class="mut small">Ventas</div><div class="big pos" style="font-size:22px">${money(tv)}</div><div class="mut small">${ventas.length} ventas</div></div><div class="kpi"><div class="mut small">Ganancia</div><div class="big ${tv-tg<0?"neg":""}" style="font-size:22px">${money(tv-tg)}</div><div class="mut small">Gastos ${money(tg)}</div></div></div>
-  <h3>Ventas · ${fechaLarga(k)}</h3><div class="card list">${ventas.length?ventas.slice().sort((a,b)=>b.ts-a.ts).map(v=>ventaRow(v,k,false)).join(""):`<div class="empty"><span class="e">🧾</span>No hubo ventas este día.</div>`}</div>
+  <button class="btn ghost block" data-act="anotar" data-dia="${k}" style="margin-top:12px" ${ro()}>✍️ Anotar venta en este día</button>
+  <h3>Ventas · ${fechaLarga(k)}</h3><div class="card list">${ventas.length?ventas.slice().sort((a,b)=>b.ts-a.ts).map(v=>ventaRow(v,k,k>=sinceKey())).join(""):`<div class="empty"><span class="e">🧾</span>No hubo ventas este día.</div>`}</div>
   ${gastos.length?`<h3>Gastos</h3><div class="card list">${gastos.map(g=>`<div class="it"><div class="grow"><b>${esc(g.concepto)}</b><div class="mut small">${esc(g.categoria)}</div></div><b>${money(g.monto)}</b></div>`).join("")}</div>`:""}`}`;
 }
 
@@ -580,6 +582,42 @@ function formPedido(pre){
       const p={ts:Date.now(),fecha:todayKey(),cliente:b.querySelector("#pCli").value.trim(),tel:b.querySelector("#pTel").value.trim(),tipo,dir:tipo==="Domicilio"?b.querySelector("#pDir").value.trim():"",notas:b.querySelector("#pNot").value.trim(),items,domicilio:dom,total:items.reduce((a,i)=>a+i.precio*i.cant,0)+dom,metodo,estado:"pendiente"};
       const id=uid(); S.pedidos[id]=p; closeSheet(); if(route()!=="pedidos") location.hash="pedidos"; else render();
       try{ await store.set("pedidos/"+id,p); await upsertCliente(p,0); toast("Pedido guardado"); }catch(e){}
+    };
+  });
+}
+function formAnotar(dia){
+  dia=dia||todayKey(); let metodo="Efectivo"; const lineas=[{nombre:"",precio:"",cant:1}];
+  const pOpts=prods().map(p=>`<option value="${esc(p.nombre)}">`).join("");
+  const draw=b=>{ b.querySelector("#aLines").innerHTML=lineas.map((l,i)=>`<div class="card" style="padding:10px;margin-bottom:8px"><div class="row" style="gap:8px"><input class="inp" list="aProd" data-ln="${i}" data-f="nombre" placeholder="¿Qué se vendió?" value="${esc(l.nombre)}" style="flex:2">${lineas.length>1?`<button type="button" class="btn ghost sm" data-ldel="${i}">✕</button>`:""}</div>
+      <div class="row" style="gap:8px;margin-top:8px"><input class="inp" data-ln="${i}" data-f="precio" inputmode="numeric" placeholder="Valor $" value="${esc(l.precio)}"><span class="step"><button type="button" data-lq="${i}" data-d="-1">−</button><b style="min-width:20px;text-align:center">${l.cant}</b><button type="button" data-lq="${i}" data-d="1">+</button></span></div></div>`).join("");
+    tot(b); b.querySelectorAll("[data-am]").forEach(x=>x.classList.toggle("on",x.dataset.am===metodo)); };
+  const tot=b=>{ b.querySelector("#aTot").textContent=money(lineas.reduce((a,l)=>a+num(l.precio)*l.cant,0)); };
+  openSheet(`<h2 style="font-size:24px">✍️ Anotar venta</h2><div class="mut small">Escribe lo que vendiste. Si es un producto del menú, el precio se pone solo.</div><datalist id="aProd">${pOpts}</datalist>
+   <label class="f">Productos</label><div id="aLines"></div><button type="button" class="btn ghost sm" id="aMore">+ Otro producto</button>
+   <label class="f">Forma de pago</label><div class="chips">${METODOS.map(m=>`<button type="button" class="chip" data-am="${m}">${m}</button>`).join("")}</div>
+   <label class="f">Fecha</label><input class="inp" id="aDia" type="date" value="${dia}" max="${todayKey()}" min="${sinceKey()}">
+   <label class="f">Cliente o nota (opcional)</label><input class="inp" id="aNota" placeholder="Ej: Don Jorge, mesa 3, fiado…">
+   <label class="row small" style="margin-top:12px;font-weight:600"><input type="checkbox" id="aStock" checked style="width:18px;height:18px"> Descontar del inventario (si es del menú)</label>
+   <div class="row" style="margin:16px 0 10px"><span class="grow mut">Total</span><b class="big" id="aTot" style="font-size:28px;color:var(--gold)">$0</b></div>
+   <button class="btn block" id="aSave">Guardar venta</button>`,b=>{
+    draw(b);
+    b.addEventListener("input",e=>{ const i=e.target.dataset.ln; if(i===undefined) return; const l=lineas[+i], f=e.target.dataset.f; l[f]=e.target.value;
+      if(f==="nombre"){ const p=prods().find(x=>x.nombre.toLowerCase()===e.target.value.trim().toLowerCase()); if(p){ l.precio=String(p.precio); l.pid=p.id; const pi=b.querySelector(`[data-ln="${i}"][data-f="precio"]`); if(pi) pi.value=Number(p.precio).toLocaleString("es-CO"); } else delete l.pid; }
+      tot(b); });
+    b.addEventListener("click",e=>{ const t=e.target.closest("button"); if(!t) return;
+      if(t.dataset.lq!==undefined){ const l=lineas[+t.dataset.lq]; l.cant=Math.max(1,l.cant+Number(t.dataset.d)); draw(b); }
+      else if(t.dataset.ldel!==undefined){ lineas.splice(+t.dataset.ldel,1); draw(b); }
+      else if(t.dataset.am){ metodo=t.dataset.am; draw(b); }
+      else if(t.id==="aMore"){ lineas.push({nombre:"",precio:"",cant:1}); draw(b); } });
+    b.querySelector("#aSave").onclick=async()=>{
+      const items=lineas.filter(l=>num(l.precio)>0).map(l=>({pid:l.pid||null,nombre:(l.nombre||"").trim()||"Venta",precio:num(l.precio),cant:l.cant}));
+      if(!items.length){ toast("Escribe el valor de la venta"); return; }
+      let d=b.querySelector("#aDia").value||todayKey(); if(d>todayKey()) d=todayKey(); if(d<sinceKey()){ toast("Solo puedes anotar ventas de los últimos "+WINDOW_DAYS+" días"); return; }
+      const nota=b.querySelector("#aNota").value.trim(), stock=b.querySelector("#aStock").checked;
+      closeSheet();
+      const v=await addVenta(stock?items:items.map(i=>Object.assign({},i,{pid:null})), metodo, {origen:"manual",dia:d,nota});
+      if(d!==todayKey()){ const doc=dayDoc(S.ventas,d); const x=doc.items.find(y=>y.id===v.id); if(x){ x.ts=kdate(d).getTime()+12*3600000; S.ventas[d]=doc; await store.set("ventas/"+d,doc); } }
+      render(); toast("✓ Venta anotada: "+money(v.total)+(d!==todayKey()?" ("+fechaLarga(d)+")":""));
     };
   });
 }
@@ -708,6 +746,7 @@ document.addEventListener("click",async e=>{
         setTimeout(()=>{ if(!$("#sheet").classList.contains("open")) openSheet(`<div style="text-align:center;padding:6px 0 4px"><div style="font-size:54px">✅</div><h2 style="font-size:28px;margin:6px 0">${money(v.total)}</h2><div class="mut">${esc(metodo)}${metodo==="Efectivo"&&rec>v.total?" · Vueltas: <b style='color:var(--ok)'>"+money(rec-v.total)+"</b>":""}</div></div><div class="row" style="margin-top:18px"><button class="btn ghost grow" data-close>Listo</button><button class="btn gold grow" id="okRec">🧾 Recibo</button></div>`,b=>{ b.querySelector("[data-close]").onclick=closeSheet; b.querySelector("#okRec").onclick=()=>showRecibo(v); }); },150);
       }catch(err){ render(); } break; }
     case "nuevoPedido": formPedido(); break;
+    case "anotar": formAnotar(d.dia); break;
     case "nuevoIns": formInsumo(null); break;
     case "nuevoProd": formProducto(null); break;
     case "nuevoGasto": formGasto(); break;
